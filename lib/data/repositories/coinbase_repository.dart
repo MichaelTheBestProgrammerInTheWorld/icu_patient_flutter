@@ -26,9 +26,9 @@ class CoinbaseRepository {
         // BTC price is around 60k-70k, so we use a simple heuristic for simulation.
         // In a real app, we'd use a rolling window or fixed range.
         final normalized = (price % 100) / 100.0;
-        return Amplitude(current: normalized, peak: 1.0);
+        return Amplitude(current: normalized, max: 1.0);
       }
-      return const Amplitude(current: 0.0, peak: 1.0);
+      return Amplitude(current: 0.0, max: 1.0);
     }).where((amp) => amp.current > 0);
   }
 
