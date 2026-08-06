@@ -23,9 +23,9 @@ class TelemetryBloc extends Bloc<TelemetryEvent, TelemetryState> {
     emit(TelemetryLoading());
     await _subscription?.cancel();
     
-    // Throttle state emissions to ~100ms to keep UI thread smooth
+    // Throttle state emissions to exactly 100ms interval for high-frequency data
     _subscription = _repository.tickerStream
-        .throttleTime(const Duration(milliseconds: 100))
+        .throttleTime(const Duration(milliseconds: 100), trailing: true, leading: true)
         .listen(
       (amplitude) {
         add(_InternalDataUpdate(amplitude));

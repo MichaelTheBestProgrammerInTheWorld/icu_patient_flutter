@@ -9,6 +9,7 @@ class OpenFDARepository {
     final response = await http.get(Uri.parse(_url));
     if (response.statusCode == 200) {
       // Offload JSON parsing to a background isolate using Isolate.run()
+      //compute() creates isolate under the hood
       return await compute(_parseJson, response.body);
     } else {
       throw Exception('Failed to load FDA events');

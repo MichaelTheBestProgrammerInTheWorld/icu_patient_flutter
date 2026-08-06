@@ -5,10 +5,8 @@ import 'package:waveform_flutter/waveform_flutter.dart';
 import '../../logic/telemetry/telemetry_bloc.dart';
 import '../../logic/telemetry/telemetry_event.dart';
 import '../../logic/telemetry/telemetry_state.dart';
-import '../../logic/heavy_data/heavy_data_bloc.dart';
-import '../../logic/heavy_data/heavy_data_event.dart';
-import '../../logic/heavy_data/heavy_data_state.dart';
 import '../widgets/telemetry_graph.dart';
+import 'fda_events_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -24,7 +22,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     context.read<TelemetryBloc>().add(StartTelemetry());
-    context.read<HeavyDataBloc>().add(FetchFdaEvents());
   }
 
   @override
@@ -40,69 +37,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('ICU Vital Dashboard'),
         backgroundColor: Colors.grey[900],
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => context.read<HeavyDataBloc>().add(FetchFdaEvents()),
-          )
-        ],
       ),
-      body: MultiBlocListener(
-        listeners: [
-          BlocListener<TelemetryBloc, TelemetryState>(
-            listener: (context, state) {
-              if (state is TelemetryDataUpdate) {
-                _ecgController.add(state.amplitude);
-              }
-            },
-          ),
-        ],
+      body: BlocListener<TelemetryBloc, TelemetryState>(
+        listener: (context, state) {
+          if (state is TelemetryDataUpdate) {
+            _ecgController.add(state.amplitude);
+          }
+        },
         child: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(16.0),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               TelemetryGraph(
                 stream: _ecgController.stream,
-                label: 'ECG (Simulated via Coinbase BTC-USD)',
+                label: 'ECG (Parsed in Long-Lived Isolate)',
                 color: Colors.greenAccent,
+              ),
+              const SizedBox(height: 24),
+              const Spacer(),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const FdaEventsScreen()),
+                  );
+                },
+                icon: const Icon(Icons.list_alt),
+                label: const Text('VIEW FDA EVENTS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 16),
               const Text(
-                'FDA Event Log (Processed in Background Isolate)',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: BlocBuilder<HeavyDataBloc, HeavyDataState>(
-                  builder: (context, state) {
-                    if (state is HeavyDataLoading) {
-                      return const Center(child: CircularProgressIndicator());
-                    } else if (state is HeavyDataLoaded) {
-                      return ListView.builder(
-                        itemCount: state.events.length,
-                        itemBuilder: (context, index) {
-                          final event = state.events[index];
-                          return Card(
-                            color: Colors.grey[850],
-                            child: ListTile(
-                              title: Text(
-                                'Report ID: ${event['safetyreportid']}',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              subtitle: Text(
-                                'Received: ${event['receivedate']}',
-                                style: const TextStyle(color: Colors.white70),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    } else if (state is HeavyDataError) {
-                      return Center(child: Text('Error: ${state.message}', style: const TextStyle(color: Colors.red)));
-                    }
-                    return const Center(child: Text('No data', style: TextStyle(color: Colors.white70)));
-                  },
-                ),
+                'Performance: Ticker parsing offloaded to Background Isolate.\nUI Thread throttled to 100ms updates.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white54, fontSize: 12),
               ),
             ],
           ),
