@@ -7,3 +7,13 @@ abstract class TelemetryEvent extends Equatable {
 
 class StartTelemetry extends TelemetryEvent {}
 class StopTelemetry extends TelemetryEvent {}
+
+class InternalDataUpdate extends TelemetryEvent {
+  final dynamic amplitude;
+  InternalDataUpdate(this.amplitude);
+}
+
+class InternalError extends TelemetryEvent {
+  final String message;
+  InternalError(this.message);
+}

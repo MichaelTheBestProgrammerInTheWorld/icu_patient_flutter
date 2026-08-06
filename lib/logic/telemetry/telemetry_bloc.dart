@@ -12,8 +12,8 @@ class TelemetryBloc extends Bloc<TelemetryEvent, TelemetryState> {
   TelemetryBloc(this._repository) : super(TelemetryInitial()) {
     on<StartTelemetry>(_onStartTelemetry);
     on<StopTelemetry>(_onStopTelemetry);
-    on<_InternalDataUpdate>(_onInternalDataUpdate);
-    on<_InternalError>(_onInternalError);
+    on<InternalDataUpdate>(_onInternalDataUpdate);
+    on<InternalError>(_onInternalError);
   }
 
   Future<void> _onStartTelemetry(
@@ -28,10 +28,10 @@ class TelemetryBloc extends Bloc<TelemetryEvent, TelemetryState> {
         .throttleTime(const Duration(milliseconds: 100), trailing: true, leading: true)
         .listen(
       (amplitude) {
-        add(_InternalDataUpdate(amplitude));
+        add(InternalDataUpdate(amplitude));
       },
       onError: (error) {
-        add(_InternalError(error.toString()));
+        add(InternalError(error.toString()));
       },
     );
   }
@@ -41,11 +41,11 @@ class TelemetryBloc extends Bloc<TelemetryEvent, TelemetryState> {
     emit(TelemetryInitial());
   }
 
-  void _onInternalDataUpdate(_InternalDataUpdate event, Emitter<TelemetryState> emit) {
+  void _onInternalDataUpdate(InternalDataUpdate event, Emitter<TelemetryState> emit) {
     emit(TelemetryDataUpdate(event.amplitude));
   }
 
-  void _onInternalError(_InternalError event, Emitter<TelemetryState> emit) {
+  void _onInternalError(InternalError event, Emitter<TelemetryState> emit) {
     emit(TelemetryError(event.message));
   }
 
@@ -54,14 +54,4 @@ class TelemetryBloc extends Bloc<TelemetryEvent, TelemetryState> {
     _subscription?.cancel();
     return super.close();
   }
-}
-
-class _InternalDataUpdate extends TelemetryEvent {
-  final dynamic amplitude;
-  _InternalDataUpdate(this.amplitude);
-}
-
-class _InternalError extends TelemetryEvent {
-  final String message;
-  _InternalError(this.message);
 }

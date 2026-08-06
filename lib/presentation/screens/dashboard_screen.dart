@@ -51,7 +51,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               TelemetryGraph(
                 stream: _ecgController.stream,
-                label: 'ECG (Parsed in Long-Lived Isolate)',
+                label: 'ECG Waveform',
                 color: Colors.greenAccent,
               ),
               const SizedBox(height: 24),
@@ -72,11 +72,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: const Text('VIEW FDA EVENTS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Performance: Ticker parsing offloaded to Background Isolate.\nUI Thread throttled to 100ms updates.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white54, fontSize: 12),
-              ),
+              // const Text(
+              //   'Performance: Ticker parsing offloaded to Background Isolate.\nUI Thread throttled to 100ms updates.',
+              //   textAlign: TextAlign.center,
+              //   style: TextStyle(color: Colors.white54, fontSize: 12),
+              // ),
             ],
           ),
         ),
