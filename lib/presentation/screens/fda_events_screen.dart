@@ -4,8 +4,20 @@ import '../../logic/heavy_data/heavy_data_bloc.dart';
 import '../../logic/heavy_data/heavy_data_event.dart';
 import '../../logic/heavy_data/heavy_data_state.dart';
 
-class FdaEventsScreen extends StatelessWidget {
+class FdaEventsScreen extends StatefulWidget {
   const FdaEventsScreen({super.key});
+
+  @override
+  State<FdaEventsScreen> createState() => _FdaEventsScreenState();
+}
+
+class _FdaEventsScreenState extends State<FdaEventsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Automatically trigger data fetch when screen is opened
+    context.read<HeavyDataBloc>().add(FetchFdaEvents());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +38,9 @@ class FdaEventsScreen extends StatelessWidget {
           if (state is HeavyDataLoading) {
             return const Center(child: CircularProgressIndicator());
           } else if (state is HeavyDataLoaded) {
+            if (state.events.isEmpty) {
+              return const Center(child: Text('No events found', style: TextStyle(color: Colors.white70)));
+            }
             return ListView.builder(
               itemCount: state.events.length,
               itemBuilder: (context, index) {
@@ -51,14 +66,24 @@ class FdaEventsScreen extends StatelessWidget {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text('Error: ${state.message}', 
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Error: ${state.message}', 
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => context.read<HeavyDataBloc>().add(FetchFdaEvents()),
+                      child: const Text('Retry'),
+                    )
+                  ],
                 ),
               ),
             );
           }
-          return const Center(child: Text('No data loaded', style: TextStyle(color: Colors.white70)));
+          return const Center(child: Text('Initializing...', style: TextStyle(color: Colors.white70)));
         },
       ),
     );
