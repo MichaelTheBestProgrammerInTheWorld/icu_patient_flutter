@@ -15,6 +15,9 @@ class CoinbaseRepository {
   // FIX: Don't close the controller in stop(), only in dispose()
   late StreamController<Amplitude> _dataController;
 
+  // Synchronization to prevent multiple concurrent initializations
+  Completer<void>? _initCompleter;
+
   CoinbaseRepository() {
     _dataController = StreamController<Amplitude>.broadcast();
   }
@@ -27,7 +30,7 @@ class CoinbaseRepository {
   /// Explicitly starts/stops the stream without killing the isolate
   void setStreaming(bool active) {
     if (active) {
-      _startIsolate(); // Isolate creation is idempotent
+      _startIsolate(); // Isolate creation is now synchronized
       _sendPortToWorker?.send(WorkerCommand.start);
     } else {
       _sendPortToWorker?.send(WorkerCommand.stop);
@@ -35,31 +38,55 @@ class CoinbaseRepository {
   }
 
   Future<void> _startIsolate() async {
+    // 1. If already fully initialized, just ensure it's started
     if (_isolate != null) {
-      // If already spawned, just ensure it's started
       _sendPortToWorker?.send(WorkerCommand.start);
       return;
     }
 
-    _receivePort = ReceivePort();
-    _isolate = await Isolate.spawn(_workerEntryPoint, _receivePort!.sendPort);
+    // 2. If initialization is already in progress, wait for it
+    if (_initCompleter != null) {
+      await _initCompleter!.future;
+      _sendPortToWorker?.send(WorkerCommand.start);
+      return;
+    }
 
-    _receivePort!.listen((message) {
-      if (message is SendPort) {
-        _sendPortToWorker = message;
-        _sendPortToWorker!.send(WorkerCommand.start);
-      } else if (message is Map<String, dynamic>) {
-        if (!_dataController.isClosed) {
-          final current = message['current'] as double;
-          final max = message['max'] as double;
-          _dataController.add(Amplitude(current: current, max: max));
+    // 3. Start initialization
+    _initCompleter = Completer<void>();
+    
+    try {
+      _receivePort = ReceivePort();
+      _isolate = await Isolate.spawn(_workerEntryPoint, _receivePort!.sendPort);
+
+      _receivePort!.listen((message) {
+        if (message is SendPort) {
+          _sendPortToWorker = message;
+          _sendPortToWorker!.send(WorkerCommand.start);
+          if (!_initCompleter!.isCompleted) {
+            _initCompleter!.complete();
+          }
+        } else if (message is Map<String, dynamic>) {
+          if (!_dataController.isClosed) {
+            final current = message['current'] as double;
+            final max = message['max'] as double;
+            _dataController.add(Amplitude(current: current, max: max));
+          }
+        } else if (message is String) {
+          if (!_dataController.isClosed) {
+            _dataController.addError(message);
+          }
         }
-      } else if (message is String) {
-        if (!_dataController.isClosed) {
-          _dataController.addError(message);
-        }
+      }, onDone: () {
+        _isolate = null;
+        _initCompleter = null;
+      });
+    } catch (e) {
+      if (!_initCompleter!.isCompleted) {
+        _initCompleter!.completeError(e);
       }
-    });
+      _initCompleter = null;
+      rethrow;
+    }
   }
 
   static void _workerEntryPoint(SendPort mainSendPort) {
@@ -112,6 +139,7 @@ class CoinbaseRepository {
     _receivePort?.close();
     _isolate?.kill(priority: Isolate.immediate);
     _isolate = null;
+    _initCompleter = null;
     if (!_dataController.isClosed) {
       _dataController.close();
     }
