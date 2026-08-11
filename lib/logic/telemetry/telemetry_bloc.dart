@@ -38,6 +38,7 @@ class TelemetryBloc extends Bloc<TelemetryEvent, TelemetryState> {
 
   void _onStopTelemetry(StopTelemetry event, Emitter<TelemetryState> emit) {
     _subscription?.cancel();
+    _repository.dispose();
     emit(TelemetryInitial());
   }
 
@@ -52,6 +53,7 @@ class TelemetryBloc extends Bloc<TelemetryEvent, TelemetryState> {
   @override
   Future<void> close() {
     _subscription?.cancel();
+    _repository.dispose();
     return super.close();
   }
 }
