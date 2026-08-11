@@ -20,6 +20,16 @@ class TelemetryDataUpdate extends TelemetryState {
   List<Object?> get props => [amplitude, timestamp];
 }
 
+/// NEW: State to represent paused telemetry without resetting the UI graph
+class TelemetryPaused extends TelemetryState {
+  final Amplitude lastAmplitude;
+  
+  TelemetryPaused(this.lastAmplitude);
+
+  @override
+  List<Object?> get props => [lastAmplitude];
+}
+
 class TelemetryError extends TelemetryState {
   final String message;
   TelemetryError(this.message);

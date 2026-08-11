@@ -6,6 +6,9 @@ import 'logic/telemetry/telemetry_bloc.dart';
 import 'logic/heavy_data/heavy_data_bloc.dart';
 import 'presentation/screens/dashboard_screen.dart';
 
+// Observer to allow screens to react to route changes (navigation)
+final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
+
 void main() {
   runApp(const IcuPatientApp());
 }
@@ -35,6 +38,7 @@ class IcuPatientApp extends StatelessWidget {
         ],
         child: MaterialApp(
           title: 'ICU Patient Dashboard',
+          navigatorObservers: [routeObserver], // Add observer here
           theme: ThemeData(
             brightness: Brightness.dark,
             primarySwatch: Colors.blue,

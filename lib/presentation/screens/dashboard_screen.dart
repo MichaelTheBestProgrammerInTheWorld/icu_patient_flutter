@@ -5,6 +5,7 @@ import 'package:waveform_flutter/waveform_flutter.dart';
 import '../../logic/telemetry/telemetry_bloc.dart';
 import '../../logic/telemetry/telemetry_event.dart';
 import '../../logic/telemetry/telemetry_state.dart';
+import '../../main.dart'; // To access global routeObserver
 import '../widgets/telemetry_graph.dart';
 import 'fda_events_screen.dart';
 
@@ -15,7 +16,7 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
+class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver, RouteAware {
   final StreamController<Amplitude> _ecgController = StreamController<Amplitude>.broadcast();
   bool _isStreaming = true;
 
@@ -27,7 +28,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)!);
+  }
+
+  @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     WidgetsBinding.instance.removeObserver(this);
     _ecgController.close();
     super.dispose();
@@ -36,10 +44,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // RESOURCE MANAGEMENT: Pause telemetry when app is backgrounded to save battery/network
     if (state == AppLifecycleState.paused) {
       context.read<TelemetryBloc>().add(StopTelemetry());
     } else if (state == AppLifecycleState.resumed && _isStreaming) {
+      context.read<TelemetryBloc>().add(StartTelemetry());
+    }
+  }
+
+  // NAVIGATION LIFECYCLE HANDLING
+  @override
+  void didPushNext() {
+    context.read<TelemetryBloc>().add(StopTelemetry());
+  }
+
+  @override
+  void didPopNext() {
+    if (_isStreaming) {
       context.read<TelemetryBloc>().add(StartTelemetry());
     }
   }
@@ -82,13 +102,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // PERFORMANCE ENHANCEMENT: RepaintBoundary isolates high-frequency repaints
-              // from the rest of the UI (buttons, appbar, text).
               RepaintBoundary(
                 child: BlocBuilder<TelemetryBloc, TelemetryState>(
                   buildWhen: (previous, current) => 
                       current is TelemetryLoading || current is TelemetryError || current is TelemetryInitial
-                          || current is TelemetryDataUpdate,
+                          || current is TelemetryDataUpdate || current is TelemetryPaused,
                   builder: (context, state) {
                     if (state is TelemetryLoading) {
                       return const SizedBox(
@@ -118,17 +136,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         ),
                       );
                     }
-                    if (!_isStreaming && state is TelemetryInitial) {
-                      return const SizedBox(
-                        height: 140,
-                        child: Center(child: Text('Telemetry Paused', style: TextStyle(color: Colors.white54))),
-                      );
-                    }
-
+                    
                     return TelemetryGraph(
                       stream: _ecgController.stream,
                       label: 'ECG (Parsed in Long-Lived Isolate)',
-                      color: Colors.greenAccent,
+                      color: _isStreaming ? Colors.greenAccent : Colors.grey,
                     );
                   },
                 ),
@@ -152,7 +164,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               ),
               const SizedBox(height: 16),
               const Text(
-                'Optimization: RepaintBoundary & Lifecycle Awareness active.\nUI updates strictly capped at 100ms.',
+                'Defect Fixes: Waveform preserved on resume. Route-aware lifecycle active.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white54, fontSize: 12),
               ),
