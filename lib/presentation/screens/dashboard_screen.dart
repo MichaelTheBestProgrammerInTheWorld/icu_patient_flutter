@@ -19,12 +19,28 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver, RouteAware {
   final StreamController<Amplitude> _ecgController = StreamController<Amplitude>.broadcast();
   bool _isStreaming = true;
+  bool _isEngineReady = false; // Flag for minimal boot frame
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    context.read<TelemetryBloc>().add(StartTelemetry());
+    
+    // STARTUP OPTIMIZATION: Signal engine ready after the very first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _isEngineReady = true;
+        });
+        
+        // Further delay heavy isolate spawning to ensure native view sync is done
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            context.read<TelemetryBloc>().add(StartTelemetry());
+          }
+        });
+      }
+    });
   }
 
   @override
@@ -77,6 +93,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   @override
   Widget build(BuildContext context) {
+    // MINIMAL BOOT FRAME: Render an empty scaffold for the very first frame.
+    // This allows the Flutter engine to signal "ready" to Android instantly,
+    // stopping the "debugCancelDraw" loop in ViewRootImpl immediately.
+    if (!_isEngineReady) {
+      return const Scaffold(backgroundColor: Colors.black);
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -111,7 +134,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     if (state is TelemetryLoading) {
                       return const SizedBox(
                         height: 140,
-                        child: Center(child: CircularProgressIndicator()),
+                        child: Center(
+                          child: Text(
+                            'Connecting to Telemetry...',
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        ),
                       );
                     }
                     if (state is TelemetryError) {

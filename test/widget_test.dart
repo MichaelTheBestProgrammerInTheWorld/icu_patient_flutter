@@ -6,6 +6,9 @@ void main() {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const IcuPatientApp());
 
+    // Pump to trigger the minimal boot frame transition
+    await tester.pump();
+
     // Verify that the dashboard title is shown.
     expect(find.text('ICU Vital Dashboard'), findsOneWidget);
     

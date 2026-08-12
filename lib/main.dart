@@ -10,6 +10,8 @@ import 'presentation/screens/dashboard_screen.dart';
 final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
 void main() {
+  // Ensure the binding is initialized before runApp to accelerate engine startup
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const IcuPatientApp());
 }
 

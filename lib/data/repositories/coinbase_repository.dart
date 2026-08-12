@@ -23,7 +23,7 @@ class CoinbaseRepository {
   }
 
   Stream<Amplitude> get tickerStream {
-    _startIsolate();
+    // Lazy start only when the stream is requested
     return _dataController.stream;
   }
 
