@@ -7,6 +7,14 @@ import 'package:waveform_flutter/waveform_flutter.dart';
 /// Commands sent from Main Isolate to Worker Isolate
 enum WorkerCommand { start, stop }
 
+enum WorkerState {
+  stopped,
+  starting,
+  ready,
+  streaming,
+  exited,
+}
+
 class CoinbaseRepository {
   Isolate? _isolate;
   ReceivePort? _receivePort;
@@ -18,6 +26,12 @@ class CoinbaseRepository {
   // Synchronization to prevent multiple concurrent initializations
   Completer<void>? _initCompleter;
 
+  WorkerState _workerState = WorkerState.stopped;
+  bool get isWorkerHealthy {
+    return _workerState == WorkerState.ready ||
+        _workerState == WorkerState.streaming;
+  }
+
   CoinbaseRepository() {
     _dataController = StreamController<Amplitude>.broadcast();
   }
@@ -28,7 +42,7 @@ class CoinbaseRepository {
   }
 
   /// Explicitly starts/stops the stream without killing the isolate
-  void setStreaming(bool active) async {
+  Future<void> setStreaming(bool active) async {
     if (active) {
       print(
           'STREAM START -> isolate=${_isolate != null}, '
@@ -37,28 +51,34 @@ class CoinbaseRepository {
       await _startIsolate(); // Isolate creation is now synchronized
       _sendPortToWorker?.send(WorkerCommand.start);
     } else {
+      _updateWorkerState(
+          WorkerState.ready,
+      );
       _sendPortToWorker?.send(WorkerCommand.stop);
     }
   }
 
   Future<void> _startIsolate() async {
     // 1. If already fully initialized, just ensure it's started
-    // if (_isolate != null) {
-    //   print("Existing isolate detected");
-    //   print("Sending START to existing worker");
-    //   _sendPortToWorker?.send(WorkerCommand.start);
-    //   return;
-    // }
-    if (_isolate != null) {
-      print("KILLING OLD ISOLATE");
-
-      _receivePort?.close();
-      _isolate?.kill(priority: Isolate.immediate);
-
-      _isolate = null;
-      _sendPortToWorker = null;
-      _initCompleter = null;
+    if (_isolate != null && isWorkerHealthy) {
+      print("Existing isolate detected");
+      print("Sending START to existing worker");
+      _sendPortToWorker?.send(WorkerCommand.start);
+      _updateWorkerState(
+          WorkerState.streaming,
+      );
+      return;
     }
+    // if (_isolate != null) {
+    //   print("KILLING OLD ISOLATE");
+    //
+    //   _receivePort?.close();
+    //   _isolate?.kill(priority: Isolate.immediate);
+    //
+    //   _isolate = null;
+    //   _sendPortToWorker = null;
+    //   _initCompleter = null;
+    // }
 
 
     // 2. If initialization is already in progress, wait for it
@@ -70,26 +90,44 @@ class CoinbaseRepository {
 
     // 3. Start initialization
     _initCompleter = Completer<void>();
+
+    _updateWorkerState(
+      WorkerState.starting,
+    );
     
     try {
       _receivePort = ReceivePort();
       final errorPort = ReceivePort();
-
       errorPort.listen((error) {
         print('ISOLATE ERROR: $error');
+      });
+      final exitPort = ReceivePort();
+      exitPort.listen((_) {
+        print("Worker exited");
+        _updateWorkerState(
+            WorkerState.exited,
+        );
+        _recreateWorker();
       });
 
       _isolate = await Isolate.spawn(
         _workerEntryPoint,
         _receivePort!.sendPort,
         onError: errorPort.sendPort,
+        onExit: exitPort.sendPort,
       );
       //_isolate = await Isolate.spawn(_workerEntryPoint, _receivePort!.sendPort);
 
       _receivePort!.listen((message) {
         if (message is SendPort) {
           _sendPortToWorker = message;
+          _updateWorkerState(
+              WorkerState.ready,
+          );
           _sendPortToWorker!.send(WorkerCommand.start);
+          _updateWorkerState(
+              WorkerState.streaming,
+          );
           if (!_initCompleter!.isCompleted) {
             _initCompleter!.complete();
           }
@@ -177,6 +215,26 @@ class CoinbaseRepository {
         channel = null;
       }
     });
+  }
+
+  void _updateWorkerState(WorkerState state) {
+    _workerState = state;
+    print(
+      'WorkerState -> ${state.name}',
+    );
+  }
+
+  void _recreateWorker(){
+    _receivePort?.close();
+    _isolate?.kill(priority: Isolate.immediate);
+
+    _isolate = null;
+    _sendPortToWorker = null;
+    _initCompleter = null;
+
+    _updateWorkerState(
+        WorkerState.stopped,
+    );
   }
 
   void dispose() {
