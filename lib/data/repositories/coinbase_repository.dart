@@ -188,8 +188,10 @@ class CoinbaseRepository {
             print("Ticker received");
             if (data['type'] == 'ticker' && data['price'] != null) {
               final price = double.tryParse(data['price']) ?? 0.0;
-              final normalized = (price % 100) / 100.0;
-              mainSendPort.send({'current': normalized, 'max': 1.0});
+
+              final fractionalPart = price - price.truncate();
+              final scaledValue = 60.0 - (fractionalPart * 55.0);
+              mainSendPort.send({'current': scaledValue, 'max': 1.0});
             }
           } catch (e) {
             print("Worker Error: $e");

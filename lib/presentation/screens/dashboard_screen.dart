@@ -18,6 +18,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver, RouteAware {
   final StreamController<Amplitude> _ecgController = StreamController<Amplitude>.broadcast();
+  var _barColor = true;
   bool _isStreaming = true;
   bool _isEngineReady = false; // Flag for minimal boot frame
 
@@ -119,6 +120,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           debugPrint('Telemetry State: $state');
           if (state is TelemetryDataUpdate) {
             _ecgController.add(state.amplitude);
+            _barColor = !_barColor;
           }
           if (state is TelemetryError || state is TelemetryPaused || state is TelemetryInitial) {
              setState(() {
@@ -182,7 +184,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     return TelemetryGraph(
                       stream: _ecgController.stream,
                       label: 'ECG (Parsed in Long-Lived Isolate)',
-                      color: _isStreaming ? Colors.greenAccent : Colors.grey,
+                      color: _isStreaming ? (_barColor
+                          ? Colors.greenAccent
+                          : Colors.yellowAccent) : Colors.grey,
                     );
                   },
                 ),
@@ -204,12 +208,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 icon: const Icon(Icons.list_alt),
                 label: const Text('VIEW FDA EVENTS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Defect Fixes: Waveform preserved on resume. Route-aware lifecycle active.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white54, fontSize: 12),
-              ),
+              const SizedBox(height: 32),
             ],
           ),
         ),
