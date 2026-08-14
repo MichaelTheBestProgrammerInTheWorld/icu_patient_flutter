@@ -28,9 +28,13 @@ class CoinbaseRepository {
   }
 
   /// Explicitly starts/stops the stream without killing the isolate
-  void setStreaming(bool active) {
+  void setStreaming(bool active) async {
     if (active) {
-      _startIsolate(); // Isolate creation is now synchronized
+      print(
+          'STREAM START -> isolate=${_isolate != null}, '
+          'sendPort=${_sendPortToWorker != null}'
+      );
+      await _startIsolate(); // Isolate creation is now synchronized
       _sendPortToWorker?.send(WorkerCommand.start);
     } else {
       _sendPortToWorker?.send(WorkerCommand.stop);
@@ -39,10 +43,23 @@ class CoinbaseRepository {
 
   Future<void> _startIsolate() async {
     // 1. If already fully initialized, just ensure it's started
+    // if (_isolate != null) {
+    //   print("Existing isolate detected");
+    //   print("Sending START to existing worker");
+    //   _sendPortToWorker?.send(WorkerCommand.start);
+    //   return;
+    // }
     if (_isolate != null) {
-      _sendPortToWorker?.send(WorkerCommand.start);
-      return;
+      print("KILLING OLD ISOLATE");
+
+      _receivePort?.close();
+      _isolate?.kill(priority: Isolate.immediate);
+
+      _isolate = null;
+      _sendPortToWorker = null;
+      _initCompleter = null;
     }
+
 
     // 2. If initialization is already in progress, wait for it
     if (_initCompleter != null) {
@@ -56,7 +73,18 @@ class CoinbaseRepository {
     
     try {
       _receivePort = ReceivePort();
-      _isolate = await Isolate.spawn(_workerEntryPoint, _receivePort!.sendPort);
+      final errorPort = ReceivePort();
+
+      errorPort.listen((error) {
+        print('ISOLATE ERROR: $error');
+      });
+
+      _isolate = await Isolate.spawn(
+        _workerEntryPoint,
+        _receivePort!.sendPort,
+        onError: errorPort.sendPort,
+      );
+      //_isolate = await Isolate.spawn(_workerEntryPoint, _receivePort!.sendPort);
 
       _receivePort!.listen((message) {
         if (message is SendPort) {
@@ -97,12 +125,17 @@ class CoinbaseRepository {
     StreamSubscription? subscription;
 
     workerReceivePort.listen((command) {
+      print("Worker received command: $command");
       if (command == WorkerCommand.start) {
         // Prevent multiple simultaneous connections
         if (subscription != null) return;
 
+        print("Worker received START");
+
         channel = WebSocketChannel.connect(Uri.parse('wss://ws-feed.exchange.coinbase.com'));
-        
+
+        print("WebSocket connected");
+
         final subscriptionMsg = {
           "type": "subscribe",
           "channels": [
@@ -114,17 +147,29 @@ class CoinbaseRepository {
         subscription = channel!.stream.listen((message) {
           try {
             final data = jsonDecode(message);
+            print("Ticker received");
             if (data['type'] == 'ticker' && data['price'] != null) {
               final price = double.tryParse(data['price']) ?? 0.0;
               final normalized = (price % 100) / 100.0;
               mainSendPort.send({'current': normalized, 'max': 1.0});
             }
           } catch (e) {
+            print("Worker Error: $e");
             mainSendPort.send("Worker Error: ${e.toString()}");
           }
         }, onError: (err) {
+          print("WebSocket Error: $err");
+          subscription = null;
+          channel?.sink.close();
+          channel = null;
           mainSendPort.send("WebSocket Error: ${err.toString()}");
-        });
+        },
+          onDone: () {
+            subscription = null;
+            channel = null;
+            mainSendPort.send("WebSocket Connection Closed");
+          },
+        );
       } else if (command == WorkerCommand.stop) {
         subscription?.cancel();
         subscription = null;

@@ -28,7 +28,7 @@ class TelemetryBloc extends Bloc<TelemetryEvent, TelemetryState> {
     }
     
     await _subscription?.cancel();
-    _repository.setStreaming(true);
+
     
     _subscription = _repository.tickerStream
         .throttleTime(const Duration(milliseconds: 100), trailing: true, leading: true)
@@ -40,6 +40,9 @@ class TelemetryBloc extends Bloc<TelemetryEvent, TelemetryState> {
         add(InternalError(error.toString()));
       },
     );
+
+    _repository.setStreaming(true);
+    print("setStreaming(true)");
   }
 
   void _onStopTelemetry(StopTelemetry event, Emitter<TelemetryState> emit) {
@@ -56,6 +59,7 @@ class TelemetryBloc extends Bloc<TelemetryEvent, TelemetryState> {
   }
 
   void _onInternalError(InternalError event, Emitter<TelemetryState> emit) {
+    _repository.setStreaming(false);
     emit(TelemetryError(event.message));
   }
 

@@ -116,8 +116,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       ),
       body: BlocListener<TelemetryBloc, TelemetryState>(
         listener: (context, state) {
+          debugPrint('Telemetry State: $state');
           if (state is TelemetryDataUpdate) {
             _ecgController.add(state.amplitude);
+          }
+          if (state is TelemetryError || state is TelemetryPaused || state is TelemetryInitial) {
+             setState(() {
+               _isStreaming = false;
+             });
+          }
+          if (state is TelemetryDataUpdate || state is TelemetryLoading) {
+             setState(() {
+               _isStreaming = true;
+             });
           }
         },
         child: Padding(
@@ -155,9 +166,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           children: [
                             const Icon(Icons.error_outline, color: Colors.redAccent),
                             const SizedBox(height: 8),
-                            Text('Error: ${state.message}', style: const TextStyle(color: Colors.white70)),
+                            const Text('Error occurred please try again', style: TextStyle(color: Colors.white70)),
                             TextButton(
-                              onPressed: () => context.read<TelemetryBloc>().add(StartTelemetry()),
+                              onPressed: ()  {
+                                print("Retry pressed");
+                                context.read<TelemetryBloc>().add(StartTelemetry());
+                              },
                               child: const Text('RETRY'),
                             )
                           ],
